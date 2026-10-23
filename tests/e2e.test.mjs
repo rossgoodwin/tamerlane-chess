@@ -37,7 +37,10 @@ async function player(name) {
   await ctx.route('**/js/firebase-config.js', r => r.fulfill({ contentType: 'text/javascript', body: CONFIG }));
   await ctx.route('**/fonts.googleapis.com/**', r => r.abort());
   const page = await ctx.newPage();
-  page.on('pageerror', e => console.log(`[${name}] page error:`, e.message));
+  page.tfcName = name;
+  page.tfcLog = [];
+  page.on('pageerror', e => page.tfcLog.push('page error: ' + e.message));
+  page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') page.tfcLog.push(m.type() + ': ' + m.text().slice(0, 400)); });
   page.on('dialog', d => d.dismiss());
   return page;
 }
@@ -49,11 +52,25 @@ async function move(page, from, to) {
   await page.click(`[data-sq="${sq(from)}"]`);
   await page.click(`[data-sq="${sq(to)}"]`);
 }
-const status = page => page.locator('#status');
+// On failure, print what each board was showing.
+async function describe(page) {
+  let state;
+  try {
+    state = await page.evaluate(() => ({
+      hash: location.hash, mode: app.mode, avail: app.net.avail, status: app.net.status,
+      me: app.me, gameId: app.net.gameId, error: app.net.error, toast: app.toast,
+      doc: app.net.doc && { white: app.net.doc.white, black: app.net.doc.black, moves: app.net.doc.moves, ended: app.net.doc.ended, next: app.net.doc.next },
+      statusText: document.getElementById('status').textContent,
+      panel: document.getElementById('panel').textContent.slice(0, 300),
+    }));
+  } catch (e) { state = { evaluateFailed: e.message }; }
+  console.log(`--- ${page.tfcName} ---\n${JSON.stringify(state, null, 1)}\n${page.tfcLog.slice(-15).join('\n')}`);
+}
 
 test('two players: invite, join, move in turn, take back, resign, rematch', { skip, timeout: 120000 }, async () => {
   const alice = await player('alice');
   const bob = await player('bob');
+  try {
 
   // Alice creates a game as White.
   await alice.goto(BASE);
@@ -107,4 +124,9 @@ test('two players: invite, join, move in turn, take back, resign, rematch', { sk
   await bob.locator('#strip-bottom', { hasText: 'White (you)' }).waitFor();
   await alice.locator('#strip-bottom', { hasText: 'Black (you)' }).waitFor();
   await bob.locator('#status', { hasText: 'Your move' }).waitFor();
+  } catch (err) {
+    await describe(alice);
+    await describe(bob);
+    throw err;
+  }
 });

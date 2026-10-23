@@ -130,22 +130,25 @@ test('draws: offer as yourself, accepted only by the other side', { skip }, asyn
 test('rematch: linked once, together with the new game', { skip }, async () => {
   await seated();
   await assertFails(up(g('alice'), { next: 'nothere' }));           // new game must exist
-  const b = writeBatch(db('alice'));
-  b.set(g('alice', 'g2'), game('alice', 'b'));
-  b.update(g('alice'), { next: 'g2', updatedAt: serverTimestamp() });
+  const a = db('alice');                                            // one instance per batch
+  const b = writeBatch(a);
+  b.set(doc(a, 'games', 'g2'), game('alice', 'b'));
+  b.update(doc(a, 'games', 'g1'), { next: 'g2', updatedAt: serverTimestamp() });
   await assertSucceeds(b.commit());
-  const c = writeBatch(db('bob'));
-  c.set(g('bob', 'g3'), game('bob', 'w'));
-  c.update(g('bob'), { next: 'g3', updatedAt: serverTimestamp() });
+  const bo = db('bob');
+  const c = writeBatch(bo);
+  c.set(doc(bo, 'games', 'g3'), game('bob', 'w'));
+  c.update(doc(bo, 'games', 'g1'), { next: 'g3', updatedAt: serverTimestamp() });
   await assertFails(c.commit());                                    // already linked
   await assertSucceeds(up(g('bob', 'g2'), { white: 'bob' }));       // Bob follows and sits
 });
 
 test('a bystander cannot link a rematch', { skip }, async () => {
   await seated();
-  const b = writeBatch(db('carol'));
-  b.set(g('carol', 'g2'), game('carol', 'w'));
-  b.update(g('carol'), { next: 'g2', updatedAt: serverTimestamp() });
+  const c = db('carol');
+  const b = writeBatch(c);
+  b.set(doc(c, 'games', 'g2'), game('carol', 'w'));
+  b.update(doc(c, 'games', 'g1'), { next: 'g2', updatedAt: serverTimestamp() });
   await assertFails(b.commit());
 });
 
