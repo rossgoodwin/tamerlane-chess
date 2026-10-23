@@ -102,7 +102,7 @@ test('two players: invite, join, move in turn, take back, resign, rematch', { sk
   await bob.locator('#status', { hasText: 'Your move' }).waitFor();
   await alice.click('[data-act="undo"]');
   await bob.locator('#status', { hasText: 'Waiting for White' }).waitFor();
-  assert.equal(await alice.evaluate(() => document.querySelectorAll('#log .n').length), 1);
+  await alice.waitForFunction(() => app.net.doc && app.net.doc.moves.length === 2);
 
   // A move written outside the board on the wrong turn is refused by the rules.
   const refused = await bob.evaluate(async () => {
