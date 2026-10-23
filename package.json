@@ -4,7 +4,7 @@
   "description": "Full Tamerlane Chess. The site itself needs no build; this file only holds the test tools.",
   "type": "module",
   "scripts": {
-    "test": "firebase emulators:exec --only firestore,auth --project demo-tamerlane \"node --test tests/*.test.mjs\"",
+    "test": "firebase emulators:exec --only firestore,auth --project demo-tamerlane \"node --test --test-concurrency=1 tests/*.test.mjs\"",
     "test:engine": "node --test tests/engine.test.mjs"
   },
   "devDependencies": {
