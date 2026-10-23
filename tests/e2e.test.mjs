@@ -33,6 +33,8 @@ after(async () => { if (browser) await browser.close(); if (server) server.close
 const [fsHost, fsPort] = (process.env.FIRESTORE_EMULATOR_HOST || ':').split(':');
 async function player(name) {
   const ctx = await browser.newContext();
+  // Skip the first-visit guide so it does not cover the board.
+  await ctx.addInitScript(() => { try { localStorage.setItem('tfc.tour.v1', 'done'); } catch (e) {} });
   await ctx.addInitScript(emu => { window.TFC_EMULATOR = emu; }, { auth: process.env.FIREBASE_AUTH_EMULATOR_HOST, firestoreHost: fsHost, firestorePort: +fsPort });
   await ctx.route('**/js/firebase-config.js', r => r.fulfill({ contentType: 'text/javascript', body: CONFIG }));
   await ctx.route('**/fonts.googleapis.com/**', r => r.abort());
