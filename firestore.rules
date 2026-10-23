@@ -1,0 +1,127 @@
+rules_version = '2';
+
+// Security rules for Full Tamerlane Chess online play.
+// Each game is one document in /games. Players are anonymous Firebase users.
+// These rules enforce who may act and in what order: seats, turn order, one move
+// at a time, take-backs, resignations, draw offers and rematches. They do not check
+// whether a move is legal chess; every browser replays the game with the rules engine
+// and refuses to show moves that are not legal.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /games/{gameId} {
+      allow get: if signedIn();
+      allow list: if false;   // games can only be opened by their link
+      allow delete: if false;
+
+      allow create: if signedIn()
+        && wellFormed()
+        && d().createdBy == uid()
+        && d().createdAt == request.time
+        && d().updatedAt == request.time
+        && ((d().white == uid() && d().black == null) || (d().black == uid() && d().white == null))
+        && d().ended == null
+        && d().drawOffer == null
+        && d().next == null;
+
+      allow update: if signedIn()
+        && wellFormed()
+        && d().updatedAt == request.time
+        && (takeSeat() || makeMove() || takeBack() || resign() || offerDraw() || acceptDraw() || linkRematch());
+
+      // ---------- helpers ----------
+      function signedIn() { return request.auth != null; }
+      function uid() { return request.auth.uid; }
+      function d() { return request.resource.data; }   // the document after the write
+      function o() { return resource.data; }           // the document before the write
+      function n() { return o().moves.size(); }
+      function changedOnly(keys) { return d().diff(o()).affectedKeys().hasOnly(keys); }
+      function stillOpen() { return o().ended == null; }
+      function seated() { return o().white == uid() || o().black == uid(); }
+      function myColor() { return o().white == uid() ? 'w' : 'b'; }
+
+      function wellFormed() {
+        return d().keys().hasOnly(['v', 'rules', 'white', 'black', 'moves', 'ended', 'drawOffer', 'createdBy', 'next', 'createdAt', 'updatedAt'])
+          && d().keys().hasAll(['v', 'rules', 'white', 'black', 'moves', 'ended', 'drawOffer', 'createdBy', 'next', 'createdAt', 'updatedAt'])
+          && d().v == 1
+          && d().rules in ['cazaux', 'forbes']
+          && d().moves is list && d().moves.size() <= 1000
+          && (d().white == null || d().white is string)
+          && (d().black == null || d().black is string)
+          && (d().drawOffer == null || d().drawOffer in ['w', 'b'])
+          && (d().next == null || (d().next is string && d().next.matches('^[A-Za-z0-9]{1,40}$')))
+          && (d().ended == null || d().ended is map);
+      }
+
+      // e3-e4, f2~h2 (king's escape), a10>e5 (pawn of pawns placed), a9-cb!d5 (citadel swap)
+      function validMove(m) {
+        return m is string
+          && m.matches('^([a-k](10|[1-9])|c[wb])[-~>]([a-k](10|[1-9])|c[wb])(![a-k](10|[1-9]))?$');
+      }
+
+      // An empty seat goes to whoever takes it, but nobody may hold both seats.
+      function takeSeat() {
+        return (changedOnly(['white', 'updatedAt']) && o().white == null && d().white == uid() && o().black != uid())
+          || (changedOnly(['black', 'updatedAt']) && o().black == null && d().black == uid() && o().white != uid());
+      }
+
+      // White moves when the move count is even, Black when it is odd.
+      function onTurn() {
+        return (n() % 2 == 0 && o().white == uid()) || (n() % 2 == 1 && o().black == uid());
+      }
+
+      // Append exactly one well-formed move to the end of the list, on your turn.
+      // A move also declines any pending draw offer.
+      function makeMove() {
+        return stillOpen() && onTurn()
+          && changedOnly(['moves', 'drawOffer', 'updatedAt'])
+          && d().moves.size() == n() + 1
+          && d().moves == o().moves.concat([d().moves[n()]])
+          && validMove(d().moves[n()])
+          && d().drawOffer == null;
+      }
+
+      // Remove your own last move, as long as your opponent has not replied.
+      function takeBack() {
+        return stillOpen() && n() > 0
+          && ((n() % 2 == 1 && o().white == uid()) || (n() % 2 == 0 && o().black == uid()))
+          && changedOnly(['moves', 'drawOffer', 'updatedAt'])
+          && d().moves.size() == n() - 1
+          && o().moves == d().moves.concat([o().moves[n() - 1]])
+          && d().drawOffer == null;
+      }
+
+      // A seated player resigns; the other colour wins.
+      function resign() {
+        return stillOpen() && seated()
+          && changedOnly(['ended', 'drawOffer', 'updatedAt'])
+          && d().ended == {'reason': 'resign', 'winner': (myColor() == 'w' ? 'b' : 'w')}
+          && d().drawOffer == null;
+      }
+
+      // Offer a draw as your own colour, or clear a pending offer (decline or withdraw).
+      function offerDraw() {
+        return stillOpen() && seated()
+          && changedOnly(['drawOffer', 'updatedAt'])
+          && (d().drawOffer == myColor() || (d().drawOffer == null && o().drawOffer != null));
+      }
+
+      // Accept the other side's draw offer.
+      function acceptDraw() {
+        return stillOpen() && seated()
+          && o().drawOffer != null && o().drawOffer != myColor()
+          && changedOnly(['ended', 'drawOffer', 'updatedAt'])
+          && d().ended == {'reason': 'agreed', 'winner': null}
+          && d().drawOffer == null;
+      }
+
+      // Point this game at its rematch, once, written together with the new game.
+      function linkRematch() {
+        return seated() && o().next == null
+          && changedOnly(['next', 'updatedAt'])
+          && d().next is string
+          && existsAfter(/databases/$(database)/documents/games/$(d().next));
+      }
+    }
+  }
+}

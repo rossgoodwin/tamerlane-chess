@@ -238,10 +238,13 @@ function notation(st,m,ns){
 }
 
 // Rebuild a game from its move codes. With strict, every move must be legal.
-function replay(rules,codes,strict){
-  let st=newGame(rules); const log=[], caps={w:[],b:[]};
-  for(const code of codes){
-    const m=decode(code);
+// base (an earlier result for a prefix of codes, same rules) lets a long game continue
+// from where it was instead of starting over.
+function replay(rules,codes,strict,base){
+  let st=newGame(rules), log=[], caps={w:[],b:[]}, start=0;
+  if(base&&base.st.rules===rules&&base.applied<=codes.length){ st=base.st; log=base.log.slice(); caps={w:base.caps.w.slice(),b:base.caps.b.slice()}; start=base.applied; }
+  for(let i=start;i<codes.length;i++){
+    const code=codes[i], m=decode(code);
     if(!m||m.f<0||m.t<0||!st.board[m.f]||st.board[m.f].c!==st.turn||st.result) break;
     if(strict&&!legalMoves(st).some(x=>encode(x)===code)) break;
     if(m.k==='cs'&&(m.x<0||!st.board[m.x])) break;
