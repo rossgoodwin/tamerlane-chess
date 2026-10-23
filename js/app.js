@@ -226,6 +226,7 @@ function renderBoard(v){
   const cell=(s,gx,gy)=>{
     const p=b[s], cls=['sq'];
     if(s>=110) cls.push('cit');
+    else if((X(s)+Y(s))%2===0) cls.push('dk'); // a1 is a dark square, as on a modern board
     if(last&&(last.f===s||last.t===s)) cls.push('last');
     if(app.sel===s) cls.push('sel');
     if(marks.has(s)) cls.push(marks.get(s));
