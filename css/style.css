@@ -70,6 +70,8 @@ button{font:inherit;color:inherit}
 h1{font-family:var(--f-title);font-weight:800;font-size:clamp(30px,7vw,46px);line-height:.98;margin:6px 0 0;color:var(--ink);text-wrap:balance;letter-spacing:-.025em}
 .sub{color:var(--muted);font-size:12.5px;margin-top:6px}
 .sub b{color:var(--ink);font-weight:700}
+.support{display:inline-block;margin-top:4px;font-size:12.5px;color:var(--muted);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.support:hover{color:var(--ink)}
 .seg{display:inline-flex;border:1px solid var(--ink);border-radius:999px;padding:3px;background:var(--panel);gap:2px}
 .seg:empty{display:none}
 .seg button{border:0;background:transparent;border-radius:999px;padding:6px 13px;font-size:13px;cursor:pointer;color:var(--muted);white-space:nowrap}
